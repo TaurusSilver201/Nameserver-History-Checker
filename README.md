@@ -193,9 +193,6 @@ Errors are logged to timestamped error files for review.
 4. Add tests if applicable
 5. Submit a pull request
 
-## License
-
-[Add your chosen license here]
 
 ## Support
 
