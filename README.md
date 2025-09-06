@@ -1,60 +1,213 @@
-# Nameserver History Checker
+# DNS Nameserver History Analyzer
 
-This Python script analyzes domain nameservers' history using the CompleteDNS API. It processes a list of domains, identifies patterns in nameserver changes, and generates reports based on specific criteria.
+A Python tool for analyzing domain nameserver history to identify potentially malicious or compromised domains based on their DNS hosting patterns.
+
+## Overview
+
+This tool fetches nameserver history data from the CompleteDNS API and analyzes patterns to classify domains as "Good", "Bad", or neutral based on various criteria including:
+
+- Nameserver change frequency
+- Usage of known bad or expired nameservers
+- Duration of nameserver usage
+- Consistency of hosting patterns
 
 ## Features
 
-- **Domain Analysis**: Processes a list of domains from `domains.txt` and fetches their nameserver history.
-- **Bad Nameserver Detection**: Identifies domains associated with bad nameservers listed in `bad.txt`.
-- **Expired Nameserver Detection**: Flags domains with expired nameservers based on patterns in `expired.txt`.
-- **Same Nameserver Grouping**: Groups related nameservers using `same.txt` for better analysis.
-- **Reports**:
-  - Generates a full report (`report_DATE_TIME.csv`) with detailed analysis.
-  - Creates a list of good domains (`Good_DATE_TIME.txt`) based on specific criteria.
-  - Creates a list of bad domains (`Bad_DATE_TIME.txt`) based on specific criteria.
-  - Logs errors encountered during processing in `errors_DATE_TIME.txt`.
+- **Bulk Domain Analysis**: Process multiple domains from a text file
+- **Pattern Recognition**: Identify suspicious nameserver patterns
+- **Flexible Reporting**: Generate full reports, good domain lists, or bad domain lists
+- **Historical Analysis**: Analyze nameserver changes over configurable time periods
+- **Error Handling**: Comprehensive error logging for failed API requests
+
+## Installation
+
+### Prerequisites
+
+- Python 3.7+
+- CompleteDNS API access
+
+### Dependencies
+
+Install required packages:
+
+```bash
+pip install requests pandas tldextract
+```
 
 ## Configuration
 
-The script uses the following configuration options from `config.py`:
-- `FULL_REPORT`: Set to `1` to enable full report generation.
-- `GOOD_REPORT`: Set to `1` to enable good domains report generation.
-- `BAD_REPORT`: Set to `1` to enable bad domains report generation.
+### 1. API Setup
 
-## Input Files
+Configure your API credentials by setting these variables in the script:
 
-- **`domains.txt`**: List of domains to analyze.
-- **`bad.txt`**: List of bad nameservers to flag.
-- **`expired.txt`**: Patterns to identify expired nameservers.
-- **`same.txt`**: Groups of related nameservers.
+```python
+API_KEY = "your_completedns_api_key"
+API_URL = "your_completedns_api_url"
+```
+
+### 2. Configuration Files
+
+Create a `config.py` file with report settings:
+
+```python
+FULL_REPORT = True   # Generate comprehensive CSV report
+GOOD_REPORT = True   # Generate list of good domains
+BAD_REPORT = True    # Generate list of bad domains
+```
+
+### 3. Required Data Files
+
+Create these files in your project directory:
+
+#### `domains.txt`
+List of domains to analyze (one per line):
+```
+example.com
+test-domain.org
+suspicious-site.net
+```
+
+#### `bad.txt`
+Patterns for known bad nameservers:
+```
+*parking*
+*sedo*
+*sedoparking*
+*banned*
+```
+
+#### `expired.txt`
+Patterns for expired/renewal nameservers:
+```
+*whois*
+*expired*
+*renew*
+*domaincontrol*
+```
+
+#### `same.txt`
+Group similar nameservers (optional):
+```
+ns1.example.com
+ns2.example.com
+
+ns1.hosting.com
+ns2.hosting.com
+```
+
+## Usage
+
+### Basic Usage
+
+```bash
+python dns_analyzer.py
+```
+
+### File Structure
+
+```
+project/
+├── dns_analyzer.py
+├── config.py
+├── domains.txt
+├── bad.txt
+├── expired.txt
+├── same.txt
+└── outputs/
+    ├── report_YYYY-MM-DD_YYYYDDMM_HHMMSS.csv
+    ├── Good_YYYYDDMM_HHMMSS.txt
+    ├── Bad_YYYYDDMM_HHMMSS.txt
+    └── errors_YYYY-MM-DD_YYYYDDMM_HHMMSS.txt
+```
+
+## Analysis Criteria
+
+### Good Domains
+Domains are classified as "Good" if they meet any of these criteria:
+- No nameserver changes (Unique NS Changes = 0)
+- Current nameserver is in the "good" list
+- Longest nameserver duration ≥ 4 years AND current NS = longest NS
+
+### Bad Domains
+Domains are classified as "Bad" if they meet any of these criteria:
+- 1+ bad nameserver usage
+- 2+ expired nameserver events AND current NS ≠ longest NS AND current NS ≠ good NS
+- 1 expired NS event AND current NS ≠ longest NS AND current NS ≠ good NS AND 4+ unique NS changes
 
 ## Output Files
 
-- **`report_DATE_TIME.csv`**: Full report with detailed analysis.
-- **`Good_DATE_TIME.txt`**: List of good domains.
-- **`Bad_DATE_TIME.txt`**: List of bad domains.
-- **`errors_DATE_TIME.txt`**: Log of errors encountered during processing.
+### Full Report (CSV)
+Contains detailed analysis for each domain:
+- `Domain`: Domain name
+- `Unique NS Changes`: Number of unique nameserver changes
+- `Bad NS`: Count of bad nameserver usage
+- `Expired NS`: Count of expired nameserver events
+- `Longest NS`: Longest-used nameserver and duration
+- `Last NS`: Current nameserver
+- `Last NS Date`: Date of last nameserver change
+- `Last=Longest?`: Whether current NS matches longest-used NS
+- `Last=Good?`: Whether current NS is in good list
+- `Conclusion`: Final classification (Good/Bad/empty)
 
-## How It Works
+### Good/Bad Domain Lists
+Simple text files containing domain names classified as good or bad.
 
-1. **Load Configurations**: Reads configurations and input files (`bad.txt`, `expired.txt`, `same.txt`).
-2. **Fetch Nameserver History**: Calls the CompleteDNS API to fetch nameserver history for each domain.
-3. **Analyze Nameservers**:
-   - Detects bad nameservers using patterns from `bad.txt`.
-   - Flags expired nameservers using patterns from `expired.txt`.
-   - Groups related nameservers using `same.txt`.
-4. **Generate Reports**:
-   - Identifies good and bad domains based on analysis.
-   - Writes results to output files.
+### Error Log
+Lists domains that couldn't be processed due to API errors.
 
-## Requirements
+## Algorithm Details
 
-- Python 3.x
-- Required Python libraries:
-  - `requests`
-  - `pandas`
-  - `tldextract`
+### Time Period Analysis
+- For domains with 8+ years of history: Analyzes last 3 years
+- For newer domains: Analyzes last 10 months
+- Excludes recent 150 days to avoid incomplete data
 
-Install dependencies using:
-```bash
-pip install requests pandas tldextract
+### Nameserver Grouping
+The tool maps similar nameservers (defined in `same.txt`) to main groups to avoid counting minor variations as separate changes.
+
+### Duration Calculation
+Calculates continuous usage periods for each nameserver, accounting for gaps and overlaps in the historical data.
+
+## Limitations
+
+- Requires CompleteDNS API access
+- Analysis quality depends on historical data availability
+- Pattern matching may need adjustment for different threat landscapes
+- Processing time increases with domain count and history depth
+
+## Error Handling
+
+The tool handles various error conditions:
+- API request failures
+- Invalid domain formats
+- Missing historical data
+- Network timeouts
+
+Errors are logged to timestamped error files for review.
+
+## Contributing
+
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Add tests if applicable
+5. Submit a pull request
+
+## License
+
+[Add your chosen license here]
+
+## Support
+
+For issues and questions:
+- Create an issue in this repository
+- Check the error logs for troubleshooting
+- Verify API credentials and data file formats
+
+## Changelog
+
+### v1.0.0
+- Initial release
+- Basic nameserver history analysis
+- Pattern-based domain classification
+- Bulk processing capabilities
